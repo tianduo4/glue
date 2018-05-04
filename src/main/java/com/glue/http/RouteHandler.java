@@ -1,5 +1,6 @@
 package com.glue.http;
 
+import com.glue.utils.PathUtils;
 import io.netty.handler.codec.http.HttpMethod;
 
 import java.util.LinkedHashMap;
@@ -14,7 +15,7 @@ import java.util.regex.Pattern;
 public class RouteHandler {
 
     public Route lookupRoute(String httpMethod, String path) throws Exception {
-//        path = parsePath(path);
+        path = PathUtils.fixPath(path);
         String routeKey = path + '#' + httpMethod.toUpperCase();
 //        Route  route    = staticRoutes.get(routeKey);
 //        if (null != route) {

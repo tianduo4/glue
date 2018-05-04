@@ -3,6 +3,7 @@ package com.glue.server.netty;
 
 import com.glue.exception.GlueException;
 import com.glue.http.HttpRequest;
+import com.glue.http.HttpResponse;
 import com.glue.http.Route;
 import com.glue.http.RouteHandler;
 import io.netty.channel.ChannelHandler;
@@ -25,52 +26,53 @@ public class ServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> 
 //        new RequestExecution(ctx, fullHttpRequest.copy()).run();
         try {
             HttpRequest request = new HttpRequest(fullHttpRequest);
-
-            boolean isStatic = false;
-            String uri = request.getUri();
-
-//        // write session
-//        WebContext.set(new WebContext(request, response));
+            HttpResponse response=new HttpResponse();
+            ctx.write("hello world");
+//            boolean isStatic = false;
+//            String uri = request.getUri();
 //
-            if (isStaticFile(uri)) {
-//            STATIC_FILE_HANDLER.handle(ctx, request, response);
-                isStatic = true;
-                return;
-            }
-
-            Route route = ROUTE_HANDLER.lookupRoute(request.getMethod(), uri);
-        if (null == route) {
-            log.warn("Not Found\t{}", uri);
-            throw new GlueException(404,"Not Found:"+uri);
-        }
-//
-//        log.info("{}\t{}\t{}", request.protocol(), request.method(), uri);
-//
-//        request.initPathParams(route);
-//
-//        // get method parameters
-//        signature.setRoute(route);
-
-
-//        if (fullHttpRequest instanceof HttpRequest) {
-//            HttpRequest req = (HttpRequest) fullHttpRequest;
-//            if (HttpHeaderUtil.is100ContinueExpected(req)) {
-//                ctx.write(new DefaultFullHttpResponse(HTTP_1_1, CONTINUE));
+////        // write session
+////        WebContext.set(new WebContext(request, response));
+////
+//            if (isStaticFile(uri)) {
+////            STATIC_FILE_HANDLER.handle(ctx, request, response);
+//                isStatic = true;
+//                return;
 //            }
-//            boolean keepAlive = HttpHeaderUtil.isKeepAlive(req);
 //
-//            FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, OK, Unpooled.wrappedBuffer(ApiHandler.transfer(ctx,msg)));
-//
-//            response.headers().set(CONTENT_TYPE,new AsciiString("application/json; charset=utf-8"));
-//            response.headers().set(TRANSFER_ENCODING, HttpHeaderValues.CHUNKED);
-//
-//            if (!keepAlive) {
-//                ctx.write(response).addListener(ChannelFutureListener.CLOSE);
-//            } else {
-//                response.headers().set(CONNECTION, HttpHeaderValues.KEEP_ALIVE);
-//                ctx.write(response);
-//            }
+//            Route route = ROUTE_HANDLER.lookupRoute(request.getMethod(), uri);
+//        if (null == route) {
+//            log.warn("Not Found\t{}", uri);
+//            throw new GlueException(404,"Not Found:"+uri);
 //        }
+////
+////        log.info("{}\t{}\t{}", request.protocol(), request.method(), uri);
+////
+////        request.initPathParams(route);
+////
+////        // get method parameters
+////        signature.setRoute(route);
+//
+//
+////        if (fullHttpRequest instanceof HttpRequest) {
+////            HttpRequest req = (HttpRequest) fullHttpRequest;
+////            if (HttpHeaderUtil.is100ContinueExpected(req)) {
+////                ctx.write(new DefaultFullHttpResponse(HTTP_1_1, CONTINUE));
+////            }
+////            boolean keepAlive = HttpHeaderUtil.isKeepAlive(req);
+////
+////            FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, OK, Unpooled.wrappedBuffer(ApiHandler.transfer(ctx,msg)));
+////
+////            response.headers().set(CONTENT_TYPE,new AsciiString("application/json; charset=utf-8"));
+////            response.headers().set(TRANSFER_ENCODING, HttpHeaderValues.CHUNKED);
+////
+////            if (!keepAlive) {
+////                ctx.write(response).addListener(ChannelFutureListener.CLOSE);
+////            } else {
+////                response.headers().set(CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+////                ctx.write(response);
+////            }
+////        }
         } catch (Exception e) {
             e.printStackTrace();
         }

@@ -1,10 +1,7 @@
 package com.glue.http;
 
 import io.netty.handler.codec.http.HttpMethod;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -15,6 +12,7 @@ import java.util.Map;
  * @create 2018-05-04 17:06
  */
 @Builder
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode

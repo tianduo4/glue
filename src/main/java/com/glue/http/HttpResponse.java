@@ -23,4 +23,10 @@ public class HttpResponse {
     private CharSequence          contentType = null;
     private CharSequence          dateString  = null;
 
+    public static HttpResponse build(ChannelHandlerContext ctx) {
+        HttpResponse httpResponse = new HttpResponse();
+        httpResponse.ctx = ctx;
+        return httpResponse;
+    }
+
 }

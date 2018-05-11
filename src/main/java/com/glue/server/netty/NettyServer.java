@@ -1,9 +1,11 @@
 package com.glue.server.netty;
 
 import com.glue.constant.SystemConstant;
+import com.glue.ioc.*;
 import com.glue.server.ILifeCycle;
 import com.glue.utils.Environment;
 import com.glue.utils.NamedThreadFactory;
+import com.glue.utils.ReflectUtils;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
@@ -17,6 +19,7 @@ import io.netty.handler.ssl.SslContextBuilder;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -28,7 +31,10 @@ import static com.glue.constant.SystemConstant.CLASSPATH;
  */
 @Slf4j
 public class NettyServer implements ILifeCycle {
+    private final static String DEFAULT_CONTENT_CONTEXT="/";
     private Environment env = Environment.empty();
+
+    private ServerContext serverContext;
 
     @Override
     public void startup() {
@@ -44,7 +50,8 @@ public class NettyServer implements ILifeCycle {
         log.info("Environment: classpath      => {}", SystemConstant.CLASSPATH);
 
         this.initConfig();
-//        WebContext.init(blade, "/");
+
+        this.initServerContext();
 
         this.initIoc();
 
@@ -52,20 +59,26 @@ public class NettyServer implements ILifeCycle {
 
 //        this.watchEnv();
 
-        try {
-            this.startServer();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+          this.startServer();
 
         log.info("⬢ {} initialize successfully, Time elapsed: {} ms", appName, (System.currentTimeMillis() - startTime));
 
     }
 
 
+
+
     @Override
     public void shutdown() {
 
+    }
+
+    private void initServerContext() {
+        serverContext=new ServerContext();
+        serverContext.setContextPath(DEFAULT_CONTENT_CONTEXT);
+
+        Ioc ioc = new SimpleIoc();
+        serverContext.setIoc(ioc);
     }
 
     private void initConfig() {
@@ -78,9 +91,58 @@ public class NettyServer implements ILifeCycle {
     }
 
     private void initIoc() {
+
+        serverContext.scanPackages().stream()
+                .flatMap(DynamicContext::recursionFindClasses)
+                .map(ClassInfo::getClazz)
+                .filter(ReflectUtils::isNormalClass)
+                .forEach(this::parseCls);
+
+//        Ioc ioc = blade.ioc();
+//        if (BladeKit.isNotEmpty(ioc.getBeans())) {
+//            log.info("⬢ Register bean: {}", ioc.getBeans());
+//        }
+//
+//        List<BeanDefine> beanDefines = ioc.getBeanDefines();
+//        if (BladeKit.isNotEmpty(beanDefines)) {
+//            beanDefines.forEach(b -> {
+//                BladeKit.injection(ioc, b);
+//                BladeKit.injectionValue(environment,b);
+//            });
+//        }
     }
 
-    private void startServer() throws InterruptedException {
+    private void parseCls(Class<?> clazz) {
+        if (null != clazz.getAnnotation(Bean.class) || null != clazz.getAnnotation(Value.class)) {
+            blade.register(clazz);
+        }
+        if (null != clazz.getAnnotation(Path.class)) {
+            if (null == blade.ioc().getBean(clazz)) {
+                blade.register(clazz);
+            }
+            Object controller = blade.ioc().getBean(clazz);
+            routeBuilder.addRouter(clazz, controller);
+        }
+        if (ReflectKit.hasInterface(clazz, WebHook.class) && null != clazz.getAnnotation(Bean.class)) {
+            Object     hook       = blade.ioc().getBean(clazz);
+            UrlPattern urlPattern = clazz.getAnnotation(UrlPattern.class);
+            if (null == urlPattern) {
+                routeBuilder.addWebHook(clazz, "/.*", hook);
+            } else {
+                Stream.of(urlPattern.values())
+                        .forEach(pattern -> routeBuilder.addWebHook(clazz, pattern, hook));
+            }
+        }
+        if (ReflectKit.hasInterface(clazz, BeanProcessor.class) && null != clazz.getAnnotation(Bean.class)) {
+            this.processors.add((BeanProcessor) blade.ioc().getBean(clazz));
+        }
+        if (isExceptionHandler(clazz)) {
+            ExceptionHandler exceptionHandler = (ExceptionHandler) blade.ioc().getBean(clazz);
+            blade.exceptionHandler(exceptionHandler);
+        }
+    }
+
+    private void startServer() {
         int backlog = env.getInt(SystemConstant.ENV_KEY_NETTY_SO_BACKLOG, SystemConstant.DEFAULT_KEY_NETTY_SO_BACKLOG);
         int acceptThreadCount = env.getInt(SystemConstant.ENC_KEY_NETTY_ACCEPT_THREAD_COUNT, SystemConstant.DEFAULT_NETTY_ACCEPT_THREAD_COUNT);
         int ioThreadCount = env.getInt(SystemConstant.ENV_KEY_NETTY_IO_THREAD_COUNT, SystemConstant.DEFAULT_NETTY_IO_THREAD_COUNT);
@@ -92,21 +154,27 @@ public class NettyServer implements ILifeCycle {
 
         EventLoopGroup bossGroup = new NioEventLoopGroup(acceptThreadCount, new NamedThreadFactory("nio-boss@"));
         EventLoopGroup workerGroup = new NioEventLoopGroup(ioThreadCount, new NamedThreadFactory("nio-worker@"));
+        try {
+            ServerBootstrap b = new ServerBootstrap();
+            b.option(ChannelOption.SO_BACKLOG, backlog);
+            b.option(ChannelOption.SO_REUSEADDR, true);
+            b.childOption(ChannelOption.SO_REUSEADDR, true);
+            b.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class);
+            b.handler(new LoggingHandler(LogLevel.INFO)).childHandler(
+                    new ServerInitializer(enableSsl, enableGzip, enableCors));
 
-        ServerBootstrap b = new ServerBootstrap();
-        b.option(ChannelOption.SO_BACKLOG, backlog);
-        b.option(ChannelOption.SO_REUSEADDR, true);
-        b.childOption(ChannelOption.SO_REUSEADDR, true);
-        b.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class);
-        b.handler(new LoggingHandler(LogLevel.INFO)).childHandler(
-                new ServerInitializer(enableSsl,enableGzip,enableCors));
+            Channel channel = b.bind(address, port).sync().channel();
+            log.info("⬢ Glue start with {}:{}", address, port);
+            log.info("⬢ Open your web browser and navigate to {}://{}:{} ⚡", "http",
+                    address.replace(SystemConstant.DEFAULT_SERVER_ADDRESS, SystemConstant.LOCAL_IP_ADDRESS), port);
 
-        Channel channel = b.bind(address, port).sync().channel();
-        log.info("⬢ Glue start with {}:{}", address, port);
-        log.info("⬢ Open your web browser and navigate to {}://{}:{} ⚡", "http",
-                address.replace(SystemConstant.DEFAULT_SERVER_ADDRESS,SystemConstant. LOCAL_IP_ADDRESS), port);
-
-        channel.closeFuture().sync();
+            channel.closeFuture().sync();
+        }catch(InterruptedException e){
+            e.printStackTrace();
+        } finally {
+            bossGroup.shutdownGracefully();
+            workerGroup.shutdownGracefully();
+        }
     }
 
     public static void main(String[] args) {

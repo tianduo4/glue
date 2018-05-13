@@ -4,6 +4,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.cookie.Cookie;
+import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.HashSet;
@@ -14,6 +15,7 @@ import java.util.Set;
  * @create 2018-05-04 18:04
  */
 @NoArgsConstructor
+@Data
 public class HttpResponse {
     private HttpHeaders headers     = new DefaultHttpHeaders(false);
     private Set<Cookie> cookies     = new HashSet<>(4);

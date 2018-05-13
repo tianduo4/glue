@@ -1,5 +1,6 @@
 package com.glue.http;
 
+import com.glue.utils.PathUtils;
 import io.netty.handler.codec.http.HttpMethod;
 import lombok.*;
 
@@ -49,4 +50,21 @@ public class Route {
      * Url path params
      */
     private Map<String, String> pathParams = new HashMap<>(8);
+
+    public Route(HttpMethod httpMethod, String path, Class<?> targetType, Method action) {
+        super();
+        this.httpMethod = httpMethod;
+        this.path = PathUtils.fixPath(path);
+        this.targetType = targetType;
+        this.action = action;
+    }
+
+    public Route(HttpMethod httpMethod, String path, Object target, Class<?> targetType, Method action) {
+        super();
+        this.httpMethod = httpMethod;
+        this.path = PathUtils.fixPath(path);
+        this.target = target;
+        this.targetType = targetType;
+        this.action = action;
+    }
 }

@@ -1,26 +1,28 @@
 package com.glue.server.netty;
 
 
+import com.alibaba.fastjson.JSONObject;
+import com.glue.constant.SystemConstant;
 import com.glue.exception.GlueException;
 import com.glue.http.HttpRequest;
 import com.glue.http.HttpResponse;
 import com.glue.http.Route;
-import com.glue.http.RouteHandler;
+import com.glue.ioc.annotation.Path;
+import com.glue.router.RouteHandler;
+import com.glue.utils.ReflectUtils;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpHeaderValues;
+import io.netty.handler.codec.http.*;
 import io.netty.util.AsciiString;
+import io.netty.util.CharsetUtil;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
-import static io.netty.handler.codec.http.HttpHeaderNames.TRANSFER_ENCODING;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import io.netty.handler.codec.http.*;
 
 @Slf4j
 @ChannelHandler.Sharable
@@ -28,7 +30,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> 
 
 //    private final ExceptionHandler exceptionHandler = WebContext.blade().exceptionHandler();
 
-    private final static RouteHandler ROUTE_HANDLER = new RouteHandler();
+    private final static RouteHandler ROUTE_HANDLER = ServerContext.getRouteHandler();
 
 
     @Override
@@ -50,11 +52,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> 
                 return;
             }
 
-//            Route route = ROUTE_HANDLER.lookupRoute(request.getMethod(), uri);
-//            if (null == route) {
-//                log.warn("Not Found\t{}", uri);
-//                throw new GlueException(404,"Not Found:"+uri);
-//            }
+            Route route = ROUTE_HANDLER.lookupRoute(request.getMethod(), uri);
+            if (null == route) {
+                log.warn("Not Found\t{}", uri);
+                throw new GlueException(404,"Not Found:"+uri);
+            }
 
            log.info("{}\t{}\t{}", request.getProtocol(), request.getMethod(), uri);
 
@@ -77,7 +79,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> 
 
             // execute
 //            signature.setRoute(route);
-//            this.routeHandle(signature);
+            this.routeHandle(request,response,route);
 
             // webHook
 //            if (hasAfterHook) {
@@ -104,6 +106,101 @@ public class ServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> 
 //        } catch (Exception e) {
 //            e.printStackTrace();
 //        }
+    }
+
+
+    /**
+     * Actual routing method execution
+     *
+     * @param signature signature
+     */
+    public void routeHandle( HttpRequest request, HttpResponse response,Route route) throws Exception {
+        Object target = route.getTarget();
+        if (null == target) {
+            Class<?> clazz = route.getAction().getDeclaringClass();
+            target = ServerContext.getIoc().getBean(clazz);
+            route.setTarget(target);
+        }
+//        if (route.getTargetType() == RouteHandler.class) {
+//            RouteHandler routeHandler = (RouteHandler) target;
+//            routeHandler.handle(signature.request(), signature.response());
+//        } else {
+            this.handle(request, response,route,new Object[1]);
+//        }
+    }
+
+    /**
+     * handle route signature
+     *
+     * @param signature route request signature
+     * @throws Exception throw like parse param exception
+     */
+    public void handle(HttpRequest request, HttpResponse response,Route route,Object[] parameters) throws Exception {
+        try {
+            Method actionMethod = route.getAction();
+            Object   target       = route.getTarget();
+            Class<?> returnType   = actionMethod.getReturnType();
+
+
+            Path path = target.getClass().getAnnotation(Path.class);
+//            JSON JSON = actionMethod.getAnnotation(JSON.class);
+//
+//            boolean isRestful = (null != JSON) || (null != path && path.restful());
+//
+//            // if request is restful and not InternetExplorer userAgent
+//            if (isRestful && !signature.request().userAgent().contains(HttpConst.IE_UA)) {
+                response.setContentType(SystemConstant.CONTENT_TYPE_JSON);
+//            }
+
+            int    len  = actionMethod.getParameterTypes().length;
+            Object returnParam = ReflectUtils.invokeMethod(target, actionMethod, len > 0 ? parameters: null);
+            if (null == returnParam) return;
+
+//            if (isRestful) {
+            String json= JSONObject.toJSONString(returnParam);
+            int statusCode=200;
+            FullHttpResponse response2 = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(statusCode), Unpooled.wrappedBuffer(json.getBytes(CharsetUtil.UTF_8)), false);
+//            if (null == this.contentType() && !WebContext.request().isIE()) {
+//                this.contentType(C.CONTENT_TYPE_JSON);
+//            }
+//            this.send(response2);
+//            }
+//            if (returnType == String.class) {
+//                response.render(returnParam.toString());
+//                return;
+//            }
+//            if (returnType == ModelAndView.class) {
+//                ModelAndView modelAndView = (ModelAndView) returnParam;
+//                response.render(modelAndView);
+//            }
+            response2.headers().set(HttpHeaderNames.CONTENT_TYPE,new AsciiString("application/json; charset=utf-8"));
+            response2.headers().set(HttpHeaderNames.TRANSFER_ENCODING, HttpHeaderValues.CHUNKED);
+            response.getCtx().write(response2);
+        } catch (Exception e) {
+            if (e instanceof InvocationTargetException) e = (Exception) e.getCause();
+            throw e;
+        }
+    }
+
+
+    public void send(@NonNull FullHttpResponse response) {
+//        response.headers().set(getDefaultHeader());
+//
+//        boolean keepAlive = WebContext.request().keepAlive();
+//
+//        if (!response.headers().contains(HttpConst.CONTENT_LENGTH)) {
+//            // Add 'Content-Length' header only for a keep-alive connection.
+//            response.headers().set(HttpConst.CONTENT_LENGTH, String.valueOf(response.content().readableBytes()));
+//        }
+//
+//        if (!keepAlive) {
+//            ctx.write(response).addListener(ChannelFutureListener.CLOSE);
+//        } else {
+//            response.headers().set(HttpConst.CONNECTION, KEEP_ALIVE);
+//            ctx.write(response, ctx.voidPromise());
+//        }
+//        isCommit = true;
+
     }
 
     private boolean isStaticFile(String uri) {

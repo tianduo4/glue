@@ -1,7 +1,14 @@
 package com.glue.server.netty;
 
 import com.glue.constant.SystemConstant;
-import com.glue.ioc.*;
+import com.glue.ioc.ClassInfo;
+import com.glue.ioc.DynamicContext;
+import com.glue.ioc.Ioc;
+import com.glue.ioc.SimpleIoc;
+import com.glue.ioc.annotation.Bean;
+import com.glue.ioc.annotation.Path;
+import com.glue.ioc.annotation.Value;
+import com.glue.router.RouteHandler;
 import com.glue.server.ILifeCycle;
 import com.glue.utils.Environment;
 import com.glue.utils.NamedThreadFactory;
@@ -14,16 +21,9 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.File;
-import java.util.List;
 import java.util.Optional;
-import java.util.stream.Stream;
-
-import static com.glue.constant.SystemConstant.CLASSPATH;
 
 /**
  * @author xushipeng
@@ -49,9 +49,11 @@ public class NettyServer implements ILifeCycle {
         log.info("Environment: file.encoding  => {}", System.getProperty("file.encoding"));
         log.info("Environment: classpath      => {}", SystemConstant.CLASSPATH);
 
+        this.initServerContext();
+
         this.initConfig();
 
-        this.initServerContext();
+        this.printBanner();
 
         this.initIoc();
 
@@ -67,7 +69,6 @@ public class NettyServer implements ILifeCycle {
 
 
 
-
     @Override
     public void shutdown() {
 
@@ -78,7 +79,9 @@ public class NettyServer implements ILifeCycle {
         serverContext.setContextPath(DEFAULT_CONTENT_CONTEXT);
 
         Ioc ioc = new SimpleIoc();
-        serverContext.setIoc(ioc);
+        ServerContext.setIoc(ioc);
+
+        ServerContext.setRouteHandler(RouteHandler.empty());
     }
 
     private void initConfig() {
@@ -88,16 +91,27 @@ public class NettyServer implements ILifeCycle {
         if (bootEnv != null) {
             bootEnv.props().forEach((key, value) -> env.set(key.toString(), value));
         }
+        serverContext.setEnvironment(bootEnv);
+
+        Optional<String> scanPackage = env.get(SystemConstant.ENV_KEY_SCAN_PACKAGE);
+        if(scanPackage.isPresent()){
+            String[] scanPackages = scanPackage.get().split(";");
+            serverContext.setScanPackages(scanPackages);
+        }
+    }
+
+    private void printBanner() {
     }
 
     private void initIoc() {
 
-        serverContext.scanPackages().stream()
+        serverContext.getPackages().stream()
                 .flatMap(DynamicContext::recursionFindClasses)
                 .map(ClassInfo::getClazz)
                 .filter(ReflectUtils::isNormalClass)
                 .forEach(this::parseCls);
 
+        ServerContext.getRouteHandler().register();
 //        Ioc ioc = blade.ioc();
 //        if (BladeKit.isNotEmpty(ioc.getBeans())) {
 //            log.info("⬢ Register bean: {}", ioc.getBeans());
@@ -114,32 +128,32 @@ public class NettyServer implements ILifeCycle {
 
     private void parseCls(Class<?> clazz) {
         if (null != clazz.getAnnotation(Bean.class) || null != clazz.getAnnotation(Value.class)) {
-            blade.register(clazz);
+            serverContext.addBean(clazz);
         }
         if (null != clazz.getAnnotation(Path.class)) {
-            if (null == blade.ioc().getBean(clazz)) {
-                blade.register(clazz);
+            if (null == serverContext.getBean(clazz)) {
+                serverContext.addBean(clazz);
             }
-            Object controller = blade.ioc().getBean(clazz);
-            routeBuilder.addRouter(clazz, controller);
+            Object controller = serverContext.getBean(clazz);
+            serverContext.addRouter(clazz, controller);
         }
-        if (ReflectKit.hasInterface(clazz, WebHook.class) && null != clazz.getAnnotation(Bean.class)) {
-            Object     hook       = blade.ioc().getBean(clazz);
-            UrlPattern urlPattern = clazz.getAnnotation(UrlPattern.class);
-            if (null == urlPattern) {
-                routeBuilder.addWebHook(clazz, "/.*", hook);
-            } else {
-                Stream.of(urlPattern.values())
-                        .forEach(pattern -> routeBuilder.addWebHook(clazz, pattern, hook));
-            }
-        }
-        if (ReflectKit.hasInterface(clazz, BeanProcessor.class) && null != clazz.getAnnotation(Bean.class)) {
-            this.processors.add((BeanProcessor) blade.ioc().getBean(clazz));
-        }
-        if (isExceptionHandler(clazz)) {
-            ExceptionHandler exceptionHandler = (ExceptionHandler) blade.ioc().getBean(clazz);
-            blade.exceptionHandler(exceptionHandler);
-        }
+//        if (ReflectKit.hasInterface(clazz, WebHook.class) && null != clazz.getAnnotation(Bean.class)) {
+//            Object     hook       = blade.ioc().getBean(clazz);
+//            UrlPattern urlPattern = clazz.getAnnotation(UrlPattern.class);
+//            if (null == urlPattern) {
+//                routeBuilder.addWebHook(clazz, "/.*", hook);
+//            } else {
+//                Stream.of(urlPattern.values())
+//                        .forEach(pattern -> routeBuilder.addWebHook(clazz, pattern, hook));
+//            }
+//        }
+//        if (ReflectKit.hasInterface(clazz, BeanProcessor.class) && null != clazz.getAnnotation(Bean.class)) {
+//            this.processors.add((BeanProcessor) blade.ioc().getBean(clazz));
+//        }
+//        if (isExceptionHandler(clazz)) {
+//            ExceptionHandler exceptionHandler = (ExceptionHandler) blade.ioc().getBean(clazz);
+//            blade.exceptionHandler(exceptionHandler);
+//        }
     }
 
     private void startServer() {

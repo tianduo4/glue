@@ -1,6 +1,8 @@
-package com.glue.utils;
+package com.glue.environment;
 
 import com.glue.constant.HttpConstant;
+import com.glue.utils.ReflectUtils;
+import com.glue.utils.ToolUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
@@ -16,13 +18,10 @@ import java.util.*;
 import static java.util.Optional.ofNullable;
 
 /**
- * Blade environment config
+ * environment config
  * <p>
  * This class can help you to load the properties type of the configuration file,
  * and easy to read、write
- *
- * @author biezhi
- * 2017/6/1
  */
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)

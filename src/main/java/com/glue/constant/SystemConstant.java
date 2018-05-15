@@ -12,7 +12,7 @@ public interface SystemConstant {
 
     String CLASSPATH = new File(SystemConstant.class.getResource("/").getPath()).getPath();
     String HTTP_DATE_FORMAT = "EEE, dd MMM yyyy HH:mm:ss zzz";
-    String       CONTENT_TYPE_JSON          = "application/json; charset=UTF-8";
+    String CONTENT_TYPE_JSON = "application/json; charset=UTF-8";
 
     String ENV_KEY_BOOT_CONF = "boot_conf";
     String ENV_KEY_SERVER_ADDRESS = "server.address";
@@ -24,6 +24,7 @@ public interface SystemConstant {
     String ENV_KEY_GZIP_ENABLE = "http.gzip.enable";
     String ENV_KEY_CORS_ENABLE = "http.cors.enable";
     String ENV_KEY_SCAN_PACKAGE = "scan.package";
+    String ENV_KEY_APP_WATCH_ENV = "app.watch-env";
 
 
     int DEFAULT_SERVER_PORT = 9000;

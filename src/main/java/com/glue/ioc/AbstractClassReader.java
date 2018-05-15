@@ -15,9 +15,6 @@ import java.util.Set;
 
 /**
  * Abstract Class Reader
- *
- * @author <a href="mailto:biezhi.me@gmail.com" target="_blank">biezhi</a>
- * @since 1.0
  */
 @Slf4j
 public abstract class AbstractClassReader implements ClassReader {

@@ -10,7 +10,7 @@ import com.glue.ioc.annotation.Path;
 import com.glue.ioc.annotation.Value;
 import com.glue.router.RouteHandler;
 import com.glue.server.ILifeCycle;
-import com.glue.utils.Environment;
+import com.glue.environment.Environment;
 import com.glue.utils.NamedThreadFactory;
 import com.glue.utils.ReflectUtils;
 import io.netty.bootstrap.ServerBootstrap;
@@ -59,7 +59,7 @@ public class NettyServer implements ILifeCycle {
 
 //        this.shutdownHook();
 
-//        this.watchEnv();
+        this.watchEnv();
 
           this.startServer();
 
@@ -67,6 +67,16 @@ public class NettyServer implements ILifeCycle {
 
     }
 
+    private void watchEnv() {
+        boolean watchEnv = env.getBoolean(SystemConstant.ENV_KEY_APP_WATCH_ENV, true);
+        log.info("⬢ Watched environment: {}", watchEnv);
+
+//        if (watchEnv) {
+//            Thread t = new Thread(new EnvironmentWatcher());
+//            t.setName("watch@thread");
+//            t.start();
+//        }
+    }
 
 
     @Override

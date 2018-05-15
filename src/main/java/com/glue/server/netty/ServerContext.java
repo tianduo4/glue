@@ -2,7 +2,7 @@ package com.glue.server.netty;
 
 import com.glue.ioc.Ioc;
 import com.glue.router.RouteHandler;
-import com.glue.utils.Environment;
+import com.glue.environment.Environment;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
